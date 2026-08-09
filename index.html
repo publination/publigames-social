@@ -247,6 +247,14 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
 }
 .modal-foot .right{display:flex;gap:8px;}
 
+/* ---------- Lightbox ---------- */
+.lightbox-content{position:relative;max-width:92vw;max-height:92vh;}
+.lightbox-content img{max-width:92vw;max-height:92vh;border-radius:8px;display:block;box-shadow:var(--shadow-lg);}
+.lightbox-close{
+  position:absolute;top:-14px;right:-14px;background:#fff;border:none;border-radius:50%;
+  width:32px;height:32px;box-shadow:var(--shadow-lg);font-size:20px;color:var(--navy);line-height:1;cursor:pointer;
+}
+
 /* ---------- Toast ---------- */
 #toast{
   position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -272,6 +280,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendário</button>
+    <button class="tab-btn" data-tab="copys">Copys</button>
     <button class="tab-btn" data-tab="inserir">Inserir Posts</button>
     <button class="tab-btn" data-tab="prontos">Posts Prontos</button>
     <button class="tab-btn" data-tab="resultados">Resultados</button>
@@ -305,12 +314,27 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
     <div class="cal-grid" id="calGrid"></div>
   </section>
 
+  <!-- ===================== COPYS ===================== -->
+  <section class="panel" id="panel-copys">
+    <div class="panel-head">
+      <div>
+        <h1>Copys</h1>
+        <p>Legendas planejadas aguardando aprovação do cliente. Depois de aprovada, o post segue para produção da arte.</p>
+      </div>
+      <button class="btn btn-primary" id="btnNovoCopy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Novo post
+      </button>
+    </div>
+    <div class="cards-grid" id="grid-copys"></div>
+  </section>
+
   <!-- ===================== INSERIR POSTS ===================== -->
   <section class="panel" id="panel-inserir">
     <div class="panel-head">
       <div>
         <h1>Inserir Posts</h1>
-        <p>Posts em produção e aprovados: envie as imagens, escreva a legenda e atualize o status.</p>
+        <p>Posts com copy aprovada: envie as imagens e atualize o status.</p>
       </div>
       <button class="btn btn-primary" id="btnNovoInserir">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
@@ -325,7 +349,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
     <div class="panel-head">
       <div>
         <h1>Posts Prontos</h1>
-        <p>Arte e copy finalizados, aguardando publicação.</p>
+        <p>Arte e copy finalizados, aguardando publicação. Clique na imagem para ampliar antes de aprovar.</p>
       </div>
     </div>
     <div class="cards-grid" id="grid-prontos"></div>
@@ -462,6 +486,14 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
       <button class="btn btn-outline" id="btnPublishCancel">Cancelar</button>
       <button class="btn btn-primary" id="btnPublishConfirm">Confirmar</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== LIGHTBOX IMAGEM ===================== -->
+<div class="overlay" id="lightboxOverlay" style="z-index:260;">
+  <div class="lightbox-content">
+    <button class="lightbox-close" id="lightboxClose">&times;</button>
+    <img id="lightboxImg" src="" alt="Imagem ampliada">
   </div>
 </div>
 
@@ -686,6 +718,7 @@ function switchTab(tab){
 }
 function renderActiveTab(){
   if(activeTab === 'calendario') renderCalendario();
+  else if(activeTab === 'copys') renderCopys();
   else if(activeTab === 'inserir') renderInserir();
   else if(activeTab === 'prontos') renderProntos();
   else if(activeTab === 'resultados') renderResultados();
@@ -765,14 +798,53 @@ function renderCalendario(){
   }
 }
 
+// ========================= COPYS =========================
+function renderCopys(){
+  var wrap = $('#grid-copys');
+  wrap.innerHTML = '';
+  var list = posts.filter(function(p){ return p.status === 'Ideia'; })
+                   .sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
+  if(list.length === 0){
+    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhuma copy aguardando aprovação. Clique em "Novo post" para planejar uma.')]));
+    return;
+  }
+  list.forEach(function(p){ wrap.appendChild(buildCopyCard(p)); });
+}
+function buildCopyCard(p){
+  var card = el('div', {class:'post-card'});
+  var body = el('div', {class:'post-card-body'});
+  body.appendChild(el('div', {class:'post-title-row'}, [
+    el('div', {}, [
+      el('div', {class:'post-title'}, [document.createTextNode(p.titulo || '(sem título)')]),
+      el('div', {class:'post-date'}, [document.createTextNode(p.dataPrevista ? displayDate(p.dataPrevista) : 'sem data')])
+    ])
+  ]));
+  body.appendChild(el('div', {class:'tag-row'}, [
+    el('span', {class:'tag', style:'background:'+(PLATFORM_COLOR[p.plataforma]||'#999')}, [document.createTextNode(p.plataforma||'—')]),
+    el('span', {class:'tag', style:'background:#8a90a8;'}, [document.createTextNode(p.formato||'—')])
+  ]));
+  var copyBox = el('textarea', {class:'copy-input', placeholder:'Escreva a legenda para aprovação...', style:'min-height:100px;'});
+  copyBox.value = p.copy || '';
+  copyBox.addEventListener('blur', function(){ if(this.value !== p.copy) updatePostLocal(p.id, { copy: this.value }); });
+  body.appendChild(copyBox);
+  var actions = el('div', {class:'card-actions'}, [
+    el('button', {class:'btn btn-outline btn-sm', onclick:function(){ openPostModal(p); }}, [document.createTextNode('Editar')]),
+    el('button', {class:'btn btn-danger btn-sm', onclick:function(){ if(confirm('Excluir este post?')) deletePostLocal(p.id); }}, [document.createTextNode('Excluir')]),
+    el('button', {class:'btn btn-primary btn-sm', onclick:function(){ updatePostLocal(p.id, { status:'Em Produção' }); showToast('Copy aprovada — post movido para produção'); }}, [document.createTextNode('Aprovar copy')])
+  ]);
+  body.appendChild(actions);
+  card.appendChild(body);
+  return card;
+}
+
 // ========================= INSERIR POSTS =========================
 function renderInserir(){
   var wrap = $('#grid-inserir');
   wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return ['Ideia','Em Produção','Aprovado'].indexOf(p.status) !== -1; })
+  var list = posts.filter(function(p){ return ['Em Produção','Aprovado'].indexOf(p.status) !== -1; })
                    .sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
   if(list.length === 0){
-    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post em produção no momento. Clique em "Novo post" para começar.')]));
+    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post em produção no momento. Aprove uma copy na aba "Copys" ou clique em "Novo post" para começar.')]));
     return;
   }
   list.forEach(function(p){ wrap.appendChild(buildInserirCard(p)); });
@@ -862,7 +934,7 @@ function buildProntoCard(p){
   var card = el('div', {class:'post-card'});
   var imgsWrap = el('div', {class:'post-card-imgs'});
   if((p.imagens||[]).length){
-    p.imagens.forEach(function(url){ imgsWrap.appendChild(el('img', {class:'post-thumb', src:url})); });
+    p.imagens.forEach(function(url){ imgsWrap.appendChild(el('img', {class:'post-thumb', src:url, style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }})); });
   } else {
     imgsWrap.appendChild(el('div', {class:'post-thumb-empty'}, [document.createTextNode('sem imagem')]));
   }
@@ -885,6 +957,15 @@ function buildProntoCard(p){
   body.appendChild(actions);
   card.appendChild(body);
   return card;
+}
+
+function openLightbox(url){
+  $('#lightboxImg').src = url;
+  $('#lightboxOverlay').classList.add('active');
+}
+function closeLightbox(){
+  $('#lightboxOverlay').classList.remove('active');
+  $('#lightboxImg').src = '';
 }
 
 function openPublishModal(id){
@@ -1070,7 +1151,7 @@ function fillSelect(id, options){
   sel.innerHTML = '';
   options.forEach(function(o){ sel.appendChild(el('option', {value:o}, [document.createTextNode(o)])); });
 }
-function openPostModal(post, dateForNew){
+function openPostModal(post, dateForNew, defaultStatus){
   editingPostId = post ? post.id : null;
   prefillDate = dateForNew || null;
   fillSelect('#f-status', STATUSES);
@@ -1081,7 +1162,7 @@ function openPostModal(post, dateForNew){
   $('#btnExcluir').style.display = post ? 'inline-flex' : 'none';
   $('#f-titulo').value = post ? (post.titulo||'') : '';
   $('#f-data').value = post ? (post.dataPrevista||'') : (dateForNew||'');
-  $('#f-status').value = post ? (post.status||'Ideia') : 'Ideia';
+  $('#f-status').value = post ? (post.status||'Ideia') : (defaultStatus || 'Ideia');
   $('#f-plataforma').value = post ? (post.plataforma||'Instagram') : 'Instagram';
   $('#f-formato').value = post ? (post.formato||'Feed') : 'Feed';
   $('#f-copy').value = post ? (post.copy||'') : '';
@@ -1161,7 +1242,8 @@ document.addEventListener('DOMContentLoaded', function(){
   $('#calNext').addEventListener('click', function(){ calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth()+1, 1); renderCalendario(); });
   $('#calToday').addEventListener('click', function(){ calendarDate = new Date(); renderCalendario(); });
 
-  $('#btnNovoInserir').addEventListener('click', function(){ openPostModal(null); });
+  $('#btnNovoCopy').addEventListener('click', function(){ openPostModal(null); });
+  $('#btnNovoInserir').addEventListener('click', function(){ openPostModal(null, null, 'Em Produção'); });
 
   // Modal post
   $('#modalClose').addEventListener('click', closePostModal);
@@ -1216,6 +1298,11 @@ document.addEventListener('DOMContentLoaded', function(){
     fetchPosts(true);
   });
   $('#btnSyncNow').addEventListener('click', function(){ fetchPosts(true); });
+
+  // Lightbox
+  $('#lightboxClose').addEventListener('click', closeLightbox);
+  $('#lightboxOverlay').addEventListener('click', function(e){ if(e.target === this) closeLightbox(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeLightbox(); });
 
   window.addEventListener('resize', debounce(function(){ if(activeTab==='resultados') renderResultados(); }, 250));
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) fetchPosts(); });

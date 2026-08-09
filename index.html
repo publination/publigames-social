@@ -154,6 +154,17 @@ input,select,textarea{font-family:inherit;}
 
 /* ---------- Cards grid (Inserir / Prontos) ---------- */
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+.format-section{margin-bottom:28px;}
+.format-section:last-child{margin-bottom:0;}
+.format-section-title{
+  display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;
+  border-bottom:2px solid var(--border);font-size:13px;font-weight:700;color:var(--navy);
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.format-section-count{
+  font-size:11px;font-weight:700;color:var(--text-muted);text-transform:none;letter-spacing:0;
+  background:#eef0f7;padding:2px 9px;border-radius:10px;
+}
 .post-card{
   background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;
   display:flex;flex-direction:column;border:1px solid var(--border);
@@ -327,7 +338,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
         Novo post
       </button>
     </div>
-    <div class="cards-grid" id="grid-copys"></div>
+    <div id="grid-copys"></div>
   </section>
 
   <!-- ===================== POSTS (PRODUÇÃO) ===================== -->
@@ -342,7 +353,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
         Novo post
       </button>
     </div>
-    <div class="cards-grid" id="grid-inserir"></div>
+    <div id="grid-inserir"></div>
   </section>
 
   <!-- ===================== RESULTADOS ===================== -->
@@ -809,13 +820,36 @@ function renderCalendario(){
 function renderCopys(){
   var wrap = $('#grid-copys');
   wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return p.status === 'Ideia'; })
-                   .sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
+  var list = posts.filter(function(p){ return p.status === 'Ideia'; });
   if(list.length === 0){
     wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhuma copy aguardando aprovação. Clique em "Novo post" para planejar uma.')]));
     return;
   }
-  list.forEach(function(p){ wrap.appendChild(buildCopyCard(p)); });
+  renderGroupedByFormat(wrap, list, buildCopyCard);
+}
+
+// Agrupa os posts por formato (Feed, Stories, Reels...) e renderiza uma seção
+// com título para cada grupo, evitando misturar formatos diferentes na grade.
+function renderGroupedByFormat(container, list, buildCardFn){
+  var groups = {};
+  list.forEach(function(p){
+    var key = p.formato || 'Sem formato';
+    (groups[key] = groups[key] || []).push(p);
+  });
+  var orderedKeys = FORMATS.filter(function(f){ return groups[f]; });
+  Object.keys(groups).forEach(function(f){ if(orderedKeys.indexOf(f) === -1) orderedKeys.push(f); });
+  orderedKeys.forEach(function(key){
+    var items = groups[key].sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
+    var section = el('div', {class:'format-section'});
+    section.appendChild(el('div', {class:'format-section-title'}, [
+      document.createTextNode(key),
+      el('span', {class:'format-section-count'}, [document.createTextNode(String(items.length))])
+    ]));
+    var grid = el('div', {class:'cards-grid'});
+    items.forEach(function(p){ grid.appendChild(buildCardFn(p)); });
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
 }
 function buildCopyCard(p){
   var card = el('div', {class:'post-card'});
@@ -848,13 +882,12 @@ function buildCopyCard(p){
 function renderInserir(){
   var wrap = $('#grid-inserir');
   wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return ['Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; })
-                   .sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
+  var list = posts.filter(function(p){ return ['Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
   if(list.length === 0){
     wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post em produção no momento. Aprove uma copy na aba "Copys" ou clique em "Novo post" para começar.')]));
     return;
   }
-  list.forEach(function(p){ wrap.appendChild(buildInserirCard(p)); });
+  renderGroupedByFormat(wrap, list, buildInserirCard);
 }
 
 function buildInserirCard(p){

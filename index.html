@@ -407,8 +407,8 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
       <div class="field">
         <label>Imagens</label>
         <div class="img-drop" id="imgDrop">
-          Arraste imagens aqui ou clique para escolher (celular ou computador)
-          <input type="file" id="f-imagens" accept="image/*" multiple style="display:none;">
+          Arraste imagens ou vídeos aqui ou clique para escolher (celular ou computador)
+          <input type="file" id="f-imagens" accept="image/*,video/*" multiple style="display:none;">
         </div>
         <div class="img-preview-row" id="imgPreviewRow"></div>
       </div>
@@ -482,6 +482,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
   <div class="lightbox-content">
     <button class="lightbox-close" id="lightboxClose">&times;</button>
     <img id="lightboxImg" src="" alt="Imagem ampliada">
+    <video id="lightboxVideo" controls playsinline style="display:none;max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:var(--shadow-lg);"></video>
   </div>
 </div>
 
@@ -687,12 +688,29 @@ function pollImageStatus(cacheKey, attempt){
     });
   });
 }
+var MAX_VIDEO_BYTES = 30 * 1024 * 1024; // 30MB (limite prático do Apps Script para upload em base64)
+function readFileAsBase64(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      resolve({ base64: e.target.result.split(',')[1], mimeType: file.type || 'video/mp4' });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 function uploadImageFile(file){
   if(!backendUrl){ showToast('Conecte o backend antes de enviar imagens'); return Promise.reject(new Error('sem backend')); }
-  return compressImage(file).then(function(res){
+  var isVideo = (file.type||'').indexOf('video/') === 0;
+  if(isVideo && file.size > MAX_VIDEO_BYTES){
+    showToast('Vídeo muito grande (máx. 30MB). Use um link do Drive para vídeos maiores.');
+    return Promise.reject(new Error('vídeo muito grande'));
+  }
+  var prep = isVideo ? readFileAsBase64(file) : compressImage(file);
+  return prep.then(function(res){
     var cacheKey = genId();
     apiPostFireAndForget('uploadImage', { cacheKey: cacheKey, filename: file.name, mimeType: res.mimeType, base64: res.base64 });
-    return pollImageStatus(cacheKey);
+    return pollImageStatus(cacheKey).then(function(url){ return isVideo ? ('video::' + url) : url; });
   });
 }
 
@@ -843,10 +861,16 @@ function buildInserirCard(p){
   // imagens
   var imgsWrap = el('div', {class:'post-card-imgs'});
   (p.imagens||[]).forEach(function(url){
-    imgsWrap.appendChild(el('img', {class:'post-thumb', src:url, style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}));
+    var isVideo = url.indexOf('video::') === 0;
+    var realUrl = isVideo ? url.slice(7) : url;
+    if(isVideo){
+      imgsWrap.appendChild(el('video', {class:'post-thumb', src:realUrl, muted:'muted', playsinline:'playsinline', preload:'metadata', style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}));
+    } else {
+      imgsWrap.appendChild(el('img', {class:'post-thumb', src:realUrl, style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}));
+    }
   });
-  var dropZone = el('div', {class:'file-drop'}, [document.createTextNode('+ Adicionar imagens')]);
-  var fileInput = el('input', {type:'file', accept:'image/*', multiple:'multiple', style:'display:none;'});
+  var dropZone = el('div', {class:'file-drop'}, [document.createTextNode('+ Adicionar imagens/vídeos')]);
+  var fileInput = el('input', {type:'file', accept:'image/*,video/*', multiple:'multiple', style:'display:none;'});
   fileInput.addEventListener('change', function(){ handleCardImageUpload(p.id, this.files); });
   dropZone.addEventListener('click', function(){ fileInput.click(); });
   imgsWrap.appendChild(dropZone);
@@ -910,12 +934,30 @@ function handleCardImageUpload(postId, files){
 }
 
 function openLightbox(url){
-  $('#lightboxImg').src = url;
+  var isVideo = url.indexOf('video::') === 0;
+  var realUrl = isVideo ? url.slice(7) : url;
+  var imgEl = $('#lightboxImg'), videoEl = $('#lightboxVideo');
+  if(isVideo){
+    imgEl.style.display = 'none';
+    imgEl.src = '';
+    videoEl.style.display = 'block';
+    videoEl.src = realUrl;
+    videoEl.play().catch(function(){});
+  } else {
+    videoEl.pause();
+    videoEl.style.display = 'none';
+    videoEl.src = '';
+    imgEl.style.display = 'block';
+    imgEl.src = realUrl;
+  }
   $('#lightboxOverlay').classList.add('active');
 }
 function closeLightbox(){
   $('#lightboxOverlay').classList.remove('active');
   $('#lightboxImg').src = '';
+  var videoEl = $('#lightboxVideo');
+  videoEl.pause();
+  videoEl.src = '';
 }
 
 function openPublishModal(id){
@@ -1135,8 +1177,13 @@ function renderImgPreviews(){
     if(img.uploading){
       wrap.appendChild(el('div', {class:'img-preview uploading'}, [document.createTextNode('...')]));
     } else {
+      var isVideo = (img.url||'').indexOf('video::') === 0;
+      var realUrl = isVideo ? img.url.slice(7) : img.url;
+      var mediaEl = isVideo
+        ? el('video', {src:realUrl, muted:'muted', playsinline:'playsinline', preload:'metadata'})
+        : el('img', {src:realUrl});
       var box = el('div', {class:'img-preview'}, [
-        el('img', {src:img.url}),
+        mediaEl,
         el('button', {class:'img-remove', onclick:function(){ modalImages.splice(idx,1); renderImgPreviews(); }}, [document.createTextNode('×')])
       ]);
       wrap.appendChild(box);

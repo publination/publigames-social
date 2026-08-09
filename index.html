@@ -1053,8 +1053,14 @@ function renderResultados(){
   monthPosts.forEach(function(p){
     var tr = el('tr');
     tr.appendChild(el('td', {class:'title-cell'}, [document.createTextNode(p.titulo||'(sem título)')]));
-    tr.appendChild(el('td'), []);
-    tr.lastChild.textContent = displayDate(p.dataPublicacao || p.dataPrevista);
+    var dateTd = el('td');
+    var dateInput = el('input', {type:'date', value: p.dataPublicacao || p.dataPrevista || '', style:'width:130px;'});
+    dateInput.addEventListener('change', function(){
+      updatePostLocal(p.id, { dataPublicacao: this.value });
+      showToast('Data de publicação atualizada');
+    });
+    dateTd.appendChild(dateInput);
+    tr.appendChild(dateTd);
     tr.appendChild(el('td', {}, [
       el('span', {class:'tag', style:'background:'+(PLATFORM_COLOR[p.plataforma]||'#999')}, [document.createTextNode(p.plataforma||'—')])
     ]));

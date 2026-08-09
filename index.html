@@ -496,7 +496,8 @@ var DOW_NAMES = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 // ========================= ESTADO =========================
 var posts = [];
-var backendUrl = localStorage.getItem('pg_backend_url') || '';
+var DEFAULT_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyKAf_ushfAoInkad2FNiAOe8Y0Ek2JFKOZ7uSUFwQQjJ06n5wZLchAbiI2RuUp0ARBCw/exec';
+var backendUrl = localStorage.getItem('pg_backend_url') || DEFAULT_BACKEND_URL;
 var activeTab = 'calendario';
 var calendarDate = new Date();
 var editingPostId = null;

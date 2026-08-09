@@ -828,15 +828,21 @@ function renderCopys(){
   renderGroupedByFormat(wrap, list, buildCopyCard);
 }
 
+// Feed e Reels ficam juntos na mesma seção, pra dar pro cliente enxergar
+// no calendário o que vai em cada dia no feed, mesmo quando é um Reels.
+var FORMAT_GROUP_LABEL = { 'Feed':'Feed / Reels', 'Reels':'Feed / Reels' };
+var GROUP_ORDER = ['Feed / Reels','Stories','Carrossel','Vídeo','Live'];
+
 // Agrupa os posts por formato (Feed, Stories, Reels...) e renderiza uma seção
 // com título para cada grupo, evitando misturar formatos diferentes na grade.
 function renderGroupedByFormat(container, list, buildCardFn){
   var groups = {};
   list.forEach(function(p){
-    var key = p.formato || 'Sem formato';
+    var raw = p.formato || 'Sem formato';
+    var key = FORMAT_GROUP_LABEL[raw] || raw;
     (groups[key] = groups[key] || []).push(p);
   });
-  var orderedKeys = FORMATS.filter(function(f){ return groups[f]; });
+  var orderedKeys = GROUP_ORDER.filter(function(f){ return groups[f]; });
   Object.keys(groups).forEach(function(f){ if(orderedKeys.indexOf(f) === -1) orderedKeys.push(f); });
   orderedKeys.forEach(function(key){
     var items = groups[key].sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });

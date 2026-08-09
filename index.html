@@ -162,6 +162,8 @@ input,select,textarea{font-family:inherit;}
   display:flex;gap:4px;padding:8px;flex-wrap:wrap;background:#f5f6fa;min-height:64px;align-items:center;
 }
 .post-thumb{width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid var(--border);background:#e5e7eb;}
+.video-thumb{display:flex;align-items:center;justify-content:center;background:var(--navy);}
+.video-thumb-play{color:#fff;font-size:16px;}
 .post-thumb-empty{
   width:100%;height:64px;border-radius:6px;border:1.5px dashed #c9cde0;display:flex;align-items:center;justify-content:center;
   color:#9aa0b8;font-size:11px;
@@ -482,7 +484,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
   <div class="lightbox-content">
     <button class="lightbox-close" id="lightboxClose">&times;</button>
     <img id="lightboxImg" src="" alt="Imagem ampliada">
-    <video id="lightboxVideo" controls playsinline style="display:none;max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:var(--shadow-lg);"></video>
+    <iframe id="lightboxFrame" style="display:none;width:90vw;max-width:960px;height:60vh;max-height:540px;border:none;border-radius:8px;box-shadow:var(--shadow-lg);" allow="autoplay; fullscreen" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -864,7 +866,9 @@ function buildInserirCard(p){
     var isVideo = url.indexOf('video::') === 0;
     var realUrl = isVideo ? url.slice(7) : url;
     if(isVideo){
-      imgsWrap.appendChild(el('video', {class:'post-thumb', src:realUrl, muted:'muted', playsinline:'playsinline', preload:'metadata', style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}));
+      imgsWrap.appendChild(el('div', {class:'post-thumb video-thumb', style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}, [
+        el('span', {class:'video-thumb-play'}, [document.createTextNode('▶')])
+      ]));
     } else {
       imgsWrap.appendChild(el('img', {class:'post-thumb', src:realUrl, style:'cursor:zoom-in;', title:'Clique para ampliar', onclick:function(){ openLightbox(url); }}));
     }
@@ -933,20 +937,26 @@ function handleCardImageUpload(postId, files){
   });
 }
 
+function extractDriveId_(url){
+  var m = url.match(/[?&]id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+  return m ? m[1] : null;
+}
+function driveVideoEmbedUrl_(url){
+  var id = extractDriveId_(url);
+  return id ? ('https://drive.google.com/file/d/' + id + '/preview') : url;
+}
 function openLightbox(url){
   var isVideo = url.indexOf('video::') === 0;
   var realUrl = isVideo ? url.slice(7) : url;
-  var imgEl = $('#lightboxImg'), videoEl = $('#lightboxVideo');
+  var imgEl = $('#lightboxImg'), frameEl = $('#lightboxFrame');
   if(isVideo){
     imgEl.style.display = 'none';
     imgEl.src = '';
-    videoEl.style.display = 'block';
-    videoEl.src = realUrl;
-    videoEl.play().catch(function(){});
+    frameEl.style.display = 'block';
+    frameEl.src = driveVideoEmbedUrl_(realUrl);
   } else {
-    videoEl.pause();
-    videoEl.style.display = 'none';
-    videoEl.src = '';
+    frameEl.style.display = 'none';
+    frameEl.src = '';
     imgEl.style.display = 'block';
     imgEl.src = realUrl;
   }
@@ -955,9 +965,7 @@ function openLightbox(url){
 function closeLightbox(){
   $('#lightboxOverlay').classList.remove('active');
   $('#lightboxImg').src = '';
-  var videoEl = $('#lightboxVideo');
-  videoEl.pause();
-  videoEl.src = '';
+  $('#lightboxFrame').src = '';
 }
 
 function openPublishModal(id){
@@ -1180,7 +1188,7 @@ function renderImgPreviews(){
       var isVideo = (img.url||'').indexOf('video::') === 0;
       var realUrl = isVideo ? img.url.slice(7) : img.url;
       var mediaEl = isVideo
-        ? el('video', {src:realUrl, muted:'muted', playsinline:'playsinline', preload:'metadata'})
+        ? el('div', {class:'video-thumb', style:'width:100%;height:100%;'}, [el('span', {class:'video-thumb-play'}, [document.createTextNode('▶')])])
         : el('img', {src:realUrl});
       var box = el('div', {class:'img-preview'}, [
         mediaEl,

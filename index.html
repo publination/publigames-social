@@ -294,6 +294,7 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
   <div class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendário</button>
     <button class="tab-btn" data-tab="inserir">Posts</button>
+    <button class="tab-btn" data-tab="stories">Stories</button>
     <button class="tab-btn" data-tab="resultados">Resultados</button>
   </div>
   <div class="sync-area">
@@ -338,6 +339,21 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
       </button>
     </div>
     <div id="grid-inserir"></div>
+  </section>
+
+  <!-- ===================== STORIES ===================== -->
+  <section class="panel" id="panel-stories">
+    <div class="panel-head">
+      <div>
+        <h1>Stories</h1>
+        <p>Copys e produção de Stories, separados por status: prontos primeiro, depois em produção.</p>
+      </div>
+      <button class="btn btn-primary" id="btnNovoStories">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Novo story
+      </button>
+    </div>
+    <div id="grid-stories"></div>
   </section>
 
   <!-- ===================== RESULTADOS ===================== -->
@@ -722,6 +738,7 @@ function switchTab(tab){
 function renderActiveTab(){
   if(activeTab === 'calendario') renderCalendario();
   else if(activeTab === 'inserir') renderInserir();
+  else if(activeTab === 'stories') renderStories();
   else if(activeTab === 'resultados') renderResultados();
 }
 
@@ -839,13 +856,21 @@ var STATUS_GROUP_LABEL = {
   'Ideia':'Copy aguardando aprovação'
 };
 var STATUS_GROUP_ORDER = ['Pronto','Aprovado','Em Produção','Ideia'];
-function renderGroupedByStatus(container, list, buildCardFn){
+// Mesmo agrupamento, usado na aba Stories (só troca o rótulo do "Pronto").
+var STORIES_STATUS_GROUP_LABEL = {
+  'Pronto':'Stories prontos',
+  'Aprovado':'Aguardando aprovação',
+  'Em Produção':'Em Produção',
+  'Ideia':'Copy aguardando aprovação'
+};
+function renderGroupedByStatus(container, list, buildCardFn, labelMap){
+  labelMap = labelMap || STATUS_GROUP_LABEL;
   var groups = {};
   list.forEach(function(p){
-    var key = STATUS_GROUP_LABEL[p.status] || p.status || 'Sem status';
+    var key = labelMap[p.status] || p.status || 'Sem status';
     (groups[key] = groups[key] || []).push(p);
   });
-  var orderedKeys = STATUS_GROUP_ORDER.map(function(s){ return STATUS_GROUP_LABEL[s]; }).filter(function(f){ return groups[f]; });
+  var orderedKeys = STATUS_GROUP_ORDER.map(function(s){ return labelMap[s]; }).filter(function(f){ return groups[f]; });
   Object.keys(groups).forEach(function(f){ if(orderedKeys.indexOf(f) === -1) orderedKeys.push(f); });
   orderedKeys.forEach(function(key){
     var items = groups[key].sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
@@ -863,12 +888,25 @@ function renderGroupedByStatus(container, list, buildCardFn){
 function renderInserir(){
   var wrap = $('#grid-inserir');
   wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return ['Ideia','Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
+  // Stories têm aba própria, não aparecem misturados aqui.
+  var list = posts.filter(function(p){ return p.formato !== 'Stories' && ['Ideia','Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
   if(list.length === 0){
     wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post no momento. Clique em "Novo post" para começar.')]));
     return;
   }
   renderGroupedByStatus(wrap, list, buildPostCard);
+}
+
+// ========================= STORIES =========================
+function renderStories(){
+  var wrap = $('#grid-stories');
+  wrap.innerHTML = '';
+  var list = posts.filter(function(p){ return p.formato === 'Stories' && ['Ideia','Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
+  if(list.length === 0){
+    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum story no momento. Clique em "Novo story" para começar.')]));
+    return;
+  }
+  renderGroupedByStatus(wrap, list, buildPostCard, STORIES_STATUS_GROUP_LABEL);
 }
 // Posts com copy ainda não aprovada usam o card simples (só legenda);
 // os demais usam o card completo, com imagens/vídeos e status.
@@ -1176,7 +1214,7 @@ function fillSelect(id, options){
   sel.innerHTML = '';
   options.forEach(function(o){ sel.appendChild(el('option', {value:o}, [document.createTextNode(o)])); });
 }
-function openPostModal(post, dateForNew, defaultStatus){
+function openPostModal(post, dateForNew, defaultStatus, defaultFormato){
   editingPostId = post ? post.id : null;
   prefillDate = dateForNew || null;
   fillSelect('#f-status', STATUSES);
@@ -1189,7 +1227,7 @@ function openPostModal(post, dateForNew, defaultStatus){
   $('#f-data').value = post ? (post.dataPrevista||'') : (dateForNew||'');
   $('#f-status').value = post ? (post.status||'Ideia') : (defaultStatus || 'Ideia');
   $('#f-plataforma').value = post ? (post.plataforma||'Instagram') : 'Instagram';
-  $('#f-formato').value = post ? (post.formato||'Feed') : 'Feed';
+  $('#f-formato').value = post ? (post.formato||'Feed') : (defaultFormato || 'Feed');
   $('#f-copy').value = post ? (post.copy||'') : '';
   $('#f-notas').value = post ? (post.notas||'') : '';
 
@@ -1273,6 +1311,7 @@ document.addEventListener('DOMContentLoaded', function(){
   $('#calToday').addEventListener('click', function(){ calendarDate = new Date(); renderCalendario(); });
 
   $('#btnNovoInserir').addEventListener('click', function(){ openPostModal(null); });
+  $('#btnNovoStories').addEventListener('click', function(){ openPostModal(null, null, null, 'Stories'); });
 
   // Modal post
   $('#modalClose').addEventListener('click', closePostModal);

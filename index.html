@@ -293,7 +293,6 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendário</button>
-    <button class="tab-btn" data-tab="copys">Copys</button>
     <button class="tab-btn" data-tab="inserir">Posts</button>
     <button class="tab-btn" data-tab="resultados">Resultados</button>
   </div>
@@ -326,27 +325,12 @@ select.status-select{width:100%;border:1px solid var(--border);border-radius:8px
     <div class="cal-grid" id="calGrid"></div>
   </section>
 
-  <!-- ===================== COPYS ===================== -->
-  <section class="panel" id="panel-copys">
-    <div class="panel-head">
-      <div>
-        <h1>Copys</h1>
-        <p>Legendas planejadas aguardando aprovação do cliente. Depois de aprovada, o post segue para produção da arte.</p>
-      </div>
-      <button class="btn btn-primary" id="btnNovoCopy">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-        Novo post
-      </button>
-    </div>
-    <div id="grid-copys"></div>
-  </section>
-
   <!-- ===================== POSTS (PRODUÇÃO) ===================== -->
   <section class="panel" id="panel-inserir">
     <div class="panel-head">
       <div>
         <h1>Posts</h1>
-        <p>Posts com copy aprovada: envie as imagens, ajuste o status e clique na imagem para ampliar. Quando estiver pronto, marque como publicado.</p>
+        <p>Todos os posts do mês, separados por status: copy aguardando aprovação, em produção e prontos pra publicar.</p>
       </div>
       <button class="btn btn-primary" id="btnNovoInserir">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
@@ -737,7 +721,6 @@ function switchTab(tab){
 }
 function renderActiveTab(){
   if(activeTab === 'calendario') renderCalendario();
-  else if(activeTab === 'copys') renderCopys();
   else if(activeTab === 'inserir') renderInserir();
   else if(activeTab === 'resultados') renderResultados();
 }
@@ -816,47 +799,8 @@ function renderCalendario(){
   }
 }
 
-// ========================= COPYS =========================
-function renderCopys(){
-  var wrap = $('#grid-copys');
-  wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return p.status === 'Ideia'; });
-  if(list.length === 0){
-    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhuma copy aguardando aprovação. Clique em "Novo post" para planejar uma.')]));
-    return;
-  }
-  renderGroupedByFormat(wrap, list, buildCopyCard);
-}
-
-// Feed e Reels ficam juntos na mesma seção, pra dar pro cliente enxergar
-// no calendário o que vai em cada dia no feed, mesmo quando é um Reels.
-var FORMAT_GROUP_LABEL = { 'Feed':'Feed / Reels', 'Reels':'Feed / Reels' };
-var GROUP_ORDER = ['Feed / Reels','Stories','Carrossel','Vídeo','Live'];
-
-// Agrupa os posts por formato (Feed, Stories, Reels...) e renderiza uma seção
-// com título para cada grupo, evitando misturar formatos diferentes na grade.
-function renderGroupedByFormat(container, list, buildCardFn){
-  var groups = {};
-  list.forEach(function(p){
-    var raw = p.formato || 'Sem formato';
-    var key = FORMAT_GROUP_LABEL[raw] || raw;
-    (groups[key] = groups[key] || []).push(p);
-  });
-  var orderedKeys = GROUP_ORDER.filter(function(f){ return groups[f]; });
-  Object.keys(groups).forEach(function(f){ if(orderedKeys.indexOf(f) === -1) orderedKeys.push(f); });
-  orderedKeys.forEach(function(key){
-    var items = groups[key].sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
-    var section = el('div', {class:'format-section'});
-    section.appendChild(el('div', {class:'format-section-title'}, [
-      document.createTextNode(key),
-      el('span', {class:'format-section-count'}, [document.createTextNode(String(items.length))])
-    ]));
-    var grid = el('div', {class:'cards-grid'});
-    items.forEach(function(p){ grid.appendChild(buildCardFn(p)); });
-    section.appendChild(grid);
-    container.appendChild(section);
-  });
-}
+// Card simplificado usado pra posts que ainda estão só com a copy, sem
+// imagem/produção ainda — mesmo formato que a antiga aba Copys usava.
 function buildCopyCard(p){
   var card = el('div', {class:'post-card'});
   var body = el('div', {class:'post-card-body'});
@@ -885,10 +829,16 @@ function buildCopyCard(p){
 }
 
 // ========================= INSERIR POSTS =========================
-// Separa os posts por status, deixando bem claro o que ainda está em
-// produção/aguardando aprovação e o que já está pronto pra publicar.
-var STATUS_GROUP_LABEL = { 'Em Produção':'Em Produção', 'Aprovado':'Aguardando aprovação', 'Pronto':'Posts prontos' };
-var STATUS_GROUP_ORDER = ['Em Produção','Aprovado','Pronto'];
+// Separa os posts por status, deixando bem claro o que ainda está com a
+// copy aguardando aprovação, o que está em produção e o que já está pronto.
+// Posts prontos aparece primeiro, pra ficar fácil ver o que já pode publicar.
+var STATUS_GROUP_LABEL = {
+  'Pronto':'Posts prontos',
+  'Aprovado':'Aguardando aprovação',
+  'Em Produção':'Em Produção',
+  'Ideia':'Copy aguardando aprovação'
+};
+var STATUS_GROUP_ORDER = ['Pronto','Aprovado','Em Produção','Ideia'];
 function renderGroupedByStatus(container, list, buildCardFn){
   var groups = {};
   list.forEach(function(p){
@@ -913,12 +863,17 @@ function renderGroupedByStatus(container, list, buildCardFn){
 function renderInserir(){
   var wrap = $('#grid-inserir');
   wrap.innerHTML = '';
-  var list = posts.filter(function(p){ return ['Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
+  var list = posts.filter(function(p){ return ['Ideia','Em Produção','Aprovado','Pronto'].indexOf(p.status) !== -1; });
   if(list.length === 0){
-    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post em produção no momento. Aprove uma copy na aba "Copys" ou clique em "Novo post" para começar.')]));
+    wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post no momento. Clique em "Novo post" para começar.')]));
     return;
   }
-  renderGroupedByStatus(wrap, list, buildInserirCard);
+  renderGroupedByStatus(wrap, list, buildPostCard);
+}
+// Posts com copy ainda não aprovada usam o card simples (só legenda);
+// os demais usam o card completo, com imagens/vídeos e status.
+function buildPostCard(p){
+  return p.status === 'Ideia' ? buildCopyCard(p) : buildInserirCard(p);
 }
 
 function buildInserirCard(p){
@@ -1317,8 +1272,7 @@ document.addEventListener('DOMContentLoaded', function(){
   $('#calNext').addEventListener('click', function(){ calendarDate = new Date(calendarDate.getFullYear(), calendarDate.getMonth()+1, 1); renderCalendario(); });
   $('#calToday').addEventListener('click', function(){ calendarDate = new Date(); renderCalendario(); });
 
-  $('#btnNovoCopy').addEventListener('click', function(){ openPostModal(null); });
-  $('#btnNovoInserir').addEventListener('click', function(){ openPostModal(null, null, 'Em Produção'); });
+  $('#btnNovoInserir').addEventListener('click', function(){ openPostModal(null); });
 
   // Modal post
   $('#modalClose').addEventListener('click', closePostModal);

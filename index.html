@@ -885,6 +885,31 @@ function buildCopyCard(p){
 }
 
 // ========================= INSERIR POSTS =========================
+// Separa os posts por status, deixando bem claro o que ainda está em
+// produção/aguardando aprovação e o que já está pronto pra publicar.
+var STATUS_GROUP_LABEL = { 'Em Produção':'Em Produção', 'Aprovado':'Aguardando aprovação', 'Pronto':'Posts prontos' };
+var STATUS_GROUP_ORDER = ['Em Produção','Aprovado','Pronto'];
+function renderGroupedByStatus(container, list, buildCardFn){
+  var groups = {};
+  list.forEach(function(p){
+    var key = STATUS_GROUP_LABEL[p.status] || p.status || 'Sem status';
+    (groups[key] = groups[key] || []).push(p);
+  });
+  var orderedKeys = STATUS_GROUP_ORDER.map(function(s){ return STATUS_GROUP_LABEL[s]; }).filter(function(f){ return groups[f]; });
+  Object.keys(groups).forEach(function(f){ if(orderedKeys.indexOf(f) === -1) orderedKeys.push(f); });
+  orderedKeys.forEach(function(key){
+    var items = groups[key].sort(function(a,b){ return (a.dataPrevista||'').localeCompare(b.dataPrevista||''); });
+    var section = el('div', {class:'format-section'});
+    section.appendChild(el('div', {class:'format-section-title'}, [
+      document.createTextNode(key),
+      el('span', {class:'format-section-count'}, [document.createTextNode(String(items.length))])
+    ]));
+    var grid = el('div', {class:'cards-grid'});
+    items.forEach(function(p){ grid.appendChild(buildCardFn(p)); });
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+}
 function renderInserir(){
   var wrap = $('#grid-inserir');
   wrap.innerHTML = '';
@@ -893,7 +918,7 @@ function renderInserir(){
     wrap.appendChild(el('div', {class:'empty-state'}, [document.createTextNode('Nenhum post em produção no momento. Aprove uma copy na aba "Copys" ou clique em "Novo post" para começar.')]));
     return;
   }
-  renderGroupedByFormat(wrap, list, buildInserirCard);
+  renderGroupedByStatus(wrap, list, buildInserirCard);
 }
 
 function buildInserirCard(p){
